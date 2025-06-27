@@ -1,10 +1,33 @@
 from ..db.collections.files import files_collection
 from bson import ObjectId
 import os
-from ..ai.llm import roast_with_llm
+from ..ai.llm import run_resume_fit_analysis
 from .q import q
 
 from pdf2image import convert_from_path
+
+
+async def update_db_sync(id, results):
+    llm_result = results["llm_result"]
+
+    # Convert Pydantic object to dict
+    result_dict = llm_result.dict()
+
+    await files_collection.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": {
+            "response": result_dict,
+            "status": "processed by llm"
+            }
+        }
+    )
+
+    print(f"[MongoDB] Updated response for id {id}")
+
+async def process_llm(id, jd):
+    results = run_resume_fit_analysis(id, jd)
+    await update_db_sync(id, results)
+
 
 async def process_file(id: str, file_path: str):
 
@@ -39,7 +62,13 @@ async def process_file(id: str, file_path: str):
         update={"$set": {"status": "converting to images success"}}
     )
 
+    entry = await files_collection.find_one(
+        filter={"_id": ObjectId(id)}
+    )
+
+    jd = entry["job_description"]
+
     #give to llm
-    q.enqueue(roast_with_llm,id)
+    q.enqueue(process_llm,id, jd)
 
 

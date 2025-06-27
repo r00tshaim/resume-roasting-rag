@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, File, Form
 
 from .utils.file import save_to_disk
 from .db.collections.files import files_collection, FileSchema
@@ -23,17 +23,18 @@ async def get_file_status(id: str):
         "file_id": str(file_in_db["_id"]),
         "file_name": file_in_db.get("name"),
         "status": file_in_db.get("status"),
-        "result": file_in_db.get("result")
+        "response": file_in_db.get("response")
     }
 
 @app.post("/upload")
-async def upload_file(file: UploadFile):
+async def upload_file(file: UploadFile = File(...), jd: str = Form(...)):
 
     #save file path to database
     #When you call insert_one, it returns an object with the inserted document’s ID, but not the full document itself.
     file_in_db = await files_collection.insert_one(
         document=FileSchema(
             name=file.filename,
+            job_description=jd,
             status="saving"
         ),
     )
